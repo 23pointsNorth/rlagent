@@ -8,7 +8,9 @@ import math
 
 
 class TerrainEnv:
-    """docstring for TerrainEnv"""
+    '''
+    TerrainEnv class
+    '''
     class ActionSpace:
         n = 8
         shape = (8,)
@@ -98,9 +100,8 @@ class TerrainEnv:
 
     def observe(self):
         roi = astar.get_roi(self.my_loc, self.terrain_map, half_size=16)
-        # r = np.asarray([[roi]], dtype='float32').reshape(32,32,1)/255.0 # 1, 32, 32, 1
-        r = np.asarray(roi, dtype='float32').reshape(1, 32, 32, 1)/255.0*0.0 # 1, 32, 32, 1
-        # print 'r shape: ', r.shape
+        r = np.asarray(roi, dtype='float32').reshape(1, 32, 32, 1)/255.0 # 1, 32, 32, 1
+        # print '>>> >>> >>> [TerrainEnv]: ' + 'r shape: ', r.shape
         a = np.asarray([math.atan2(self.my_loc[1] - self.goal[1], self.my_loc[0] - self.goal[0])])/math.pi
         return r, a
 
@@ -118,9 +119,9 @@ class TerrainEnv:
         self.goal = self.start
         while self.grid.in_bounds(self.goal) and self.grid.passable(self.goal) and self.grid.dist(self.start, self.goal) <= self.min_distance:
             # After 50k epochs, make it harder
-            # if (epoch > 5e4):
-            #     self.goal_offset_size = 64
-            #     allowed_moves = 400
+            if (self.reset_counter > 1e5):
+                self.goal_offset_size = 64
+                self.allowed_moves = 400
             goal_offset = (2 * np.random.random(2) - 1) * ((self.goal_hardness + self.reset_counter) % self.goal_offset_size + self.min_distance + 1)
             self.goal = np.asarray(self.start) + goal_offset.astype(np.int)
             self.goal = tuple(self.goal)
@@ -151,18 +152,23 @@ class TerrainEnv:
             cv2.waitKey(1)
         return f_map
 
+    def get_completeness_ratio(self):
+        return max(0, 1 - (self.grid.dist(self.my_loc, self.goal) / 
+            max(min(self.grid.dist(self.start, self.goal), 
+                    self.grid.dist(self.my_loc, self.start)), 
+                1e-4)))
 
 def main():
-    print 'Illustrating random movements'
+    print '>>> >>> >>> [TerrainEnv]: ' + 'Illustrating random movements'
     env = TerrainEnv()
-    print env.observation_space.shape
-    print env.action_space.shape
+    print '>>> >>> >>> [TerrainEnv]: Observation space:' + env.observation_space.shape
+    print '>>> >>> >>> [TerrainEnv]: Action space: ' + env.action_space.shape
     for _ in xrange(100):
         action = np.random.randint(0,9)
         observations, reward, done, info = env.step(action)
     env.render()
     a = env.reset()
-    print len(a)
+    print '>>> >>> >>> [TerrainEnv]: Length of a: ' +len(a)
 
 if __name__ == '__main__':
     main()

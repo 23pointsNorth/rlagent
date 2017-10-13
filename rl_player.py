@@ -3,6 +3,7 @@ import cv2
 import numpy as np
 import os
 
+import terrainEnv as te
 import map as m
 # from map import get_roi, get_pretty_map
 import astar as astar
@@ -78,35 +79,34 @@ class PGAgent:
             discounted_rewards[t] = running_add
         return discounted_rewards
 
-    def prepare_training(self):
-        self.games += 1
-        if (self.rewards[-1] > 0):
-            self.wins += 1
-        gradients = np.vstack(self.gradients)
-        rewards = np.vstack(self.rewards)
-        rewards = self.discount_rewards(rewards)
-        div_rew = np.std(rewards - np.mean(rewards))
-        if (div_rew == 0):
-            div_rew = np.finfo(np.float32).eps
-        rewards = rewards / div_rew
-        gradients *= rewards
+    # def prepare_training(self):
+    #     self.games += 1
+    #     if (self.rewards[-1] > 0):
+    #         self.wins += 1
+    #     gradients = np.vstack(self.gradients)
+    #     rewards = np.vstack(self.rewards)
+    #     rewards = self.discount_rewards(rewards)
+    #     div_rew = np.std(rewards - np.mean(rewards))
+    #     if (div_rew == 0):
+    #         div_rew = np.finfo(np.float32).eps
+    #     rewards = rewards / div_rew
+    #     gradients *= rewards
         
-        self.Xrmemory += self.states_roi
-        self.Xamemory += self.states_a
-        self.Ymemory = np.vstack((self.Ymemory, (self.probs + self.learning_rate * np.squeeze(np.vstack([gradients])))))
-        self.states_roi, self.states_a, self.probs, self.gradients, self.rewards = [], [], [], [], []
+    #     self.Xrmemory += self.states_roi
+    #     self.Xamemory += self.states_a
+    #     self.Ymemory = np.vstack((self.Ymemory, (self.probs + self.learning_rate * np.squeeze(np.vstack([gradients])))))
+    #     self.states_roi, self.states_a, self.probs, self.gradients, self.rewards = [], [], [], [], []
 
-    def prepare_training2(self):
+    def prepare_training_norm(self):
         self.games += 1
-        if (self.rewards[-1] > 0):
+        if (self.rewards[-1] > 1): #This assumes last reward is strictly > 1
             self.wins += 1
         gradients = np.vstack(self.gradients)
         rewards = np.vstack(self.rewards)
         rewards = self.discount_rewards(rewards)
-        # rewards -= np.mean(rewards)
         div_rew = np.std(rewards - np.mean(rewards))
         if (div_rew == 0):
-            div_rew = 1e-4 #np.finfo(np.float32).eps
+            div_rew = 1e-4
         rewards = rewards / div_rew
         gradients *= rewards
         
@@ -130,10 +130,10 @@ class PGAgent:
         Y[Y<0]=0.0
         Y[Y>1]=1.0
 
-        print 'Updating on ', Y.shape, ' items...'
+        print '[PGAgent] ' + 'Updating on ', Y.shape, ' items...'
         # self.model.train_on_batch(X, Y)
         self.model.fit(X, Y, batch_size=5000, epochs=self.training_epochs, verbose=1)
-        print 'Model updated on last batch!'
+        print '[PGAgent] ' + 'Model updated on last batch!'
         self.states_roi, self.states_a, self.probs, self.gradients, self.rewards = [], [], [], [], []
         self.Xrmemory, self.Xamemory = [], []
         self.Ymemory = np.empty(shape=(0, rll.num_classes))
@@ -155,18 +155,23 @@ ID = os.getenv('ID', -109)
 SCORES_FILE = 'scores'+str(ID)+'.csv'
 
 if __name__ == '__main__':
-    agent = PGAgent() #rll.create_model('model.h5')
-
+    # Hyper params
     epoch = 0
-    wins = 0
+    total_wins = 0
     score_sum = 0
-    allowed_moves = 100
-    wolrd_size = 250
-    main_terrain_map = m.draw_terrain(shape=(wolrd_size, wolrd_size))
+    world_size = 250
+
+    agent = PGAgent()
+    env = te.TerrainEnv(world_size=world_size)
+
+
+    # allowed_moves = 100
+
+    # main_terrain_map = m.draw_terrain(shape=(world_size, world_size))
     goal_offset_size = 40
-    main_tree_map = m.draw_trees(terrain=main_terrain_map, R=np.random.randint(3, 10), freq=np.random.randint(15, 35))
+    # main_tree_map = m.draw_trees(terrain=main_terrain_map, R=np.random.randint(3, 10), freq=np.random.randint(15, 35))
     # terrain_map = np.maximum(main_terrain_map, main_terrain_map) #main_terrain_map#
-    terrain_map = np.maximum(main_tree_map, main_terrain_map) #main_terrain_map#
+    # terrain_map = np.maximum(main_tree_map, main_terrain_map) #main_terrain_map#
 
     # Clear the file
     with open(SCORES_FILE, 'w') as scores_file:
@@ -175,120 +180,125 @@ if __name__ == '__main__':
     while True:
         epoch += 1
         print '----'
-        print 'ID:', str(ID), ' Epoch: ', epoch, ' w: ', wins
+        print 'ID:', str(ID), ' Epoch: ', epoch, ' w: ', total_wins + agent.wins
 
-        f_map = m.get_pretty_map(main_terrain_map, main_tree_map)
-        # f_map = get_pretty_map(main_terrain_map, main_tree_map)
+        # f_map = m.get_pretty_map(main_terrain_map, main_tree_map)
+        # # f_map = get_pretty_map(main_terrain_map, main_tree_map)
 
-        grid = astar.SquareGrid(terrain_map)
+        # grid = astar.SquareGrid(terrain_map)
 
-        # Choose a good start and end point
-        start = grid.choose_free_loc()
-        goal = start
-        while grid.dist(start, goal) <= 1.0:
-            # After 50k epochs, make it harder
-            if (epoch > 1e5):
-                goal_offset_size = 64
-                allowed_moves = 400
-            goal_offset = (2*np.random.random(2) - 1) * (epoch % goal_offset_size + 3)
-            goal = np.asarray(start) + goal_offset.astype(np.int)
-            goal[goal < 0] = 0
-            goal[goal >= wolrd_size] = wolrd_size - 1
-            goal = tuple(goal)
+        # # Choose a good start and end point
+        # start = grid.choose_free_loc()
+        # goal = start
+        # while grid.dist(start, goal) <= 1.0:
+        #     # After 50k epochs, make it harder
+        #     if (epoch > 1e5):
+        #         goal_offset_size = 64
+        #         allowed_moves = 400
+        #     goal_offset = (2*np.random.random(2) - 1) * (epoch % goal_offset_size + 3)
+        #     goal = np.asarray(start) + goal_offset.astype(np.int)
+        #     goal[goal < 0] = 0
+        #     goal[goal >= world_size] = world_size - 1
+        #     goal = tuple(goal)
 
-        cv2.circle(f_map, start, 4, (120, 110, 250), -1)
-        cv2.circle(f_map, goal, 4, (250, 110, 120), -1)
+        # cv2.circle(f_map, start, 4, (120, 110, 250), -1)
+        # cv2.circle(f_map, goal, 4, (250, 110, 120), -1)
 
         total_r_states = []
         total_a_states = []
         total_actions = []
 
         score = 0
-        last_location = None
-        total_played_actions = 0
+        # last_location = None
+        # total_played_actions = 0
         fails = 0
-        last_failed = False
-        my_loc = start
-        while True:
-            roi = m.get_roi(my_loc, terrain_map, half_size=16)
-            #cv2.imshow('roi', roi)
-            r = np.asarray([[roi]], dtype='float32').reshape(1,32,32,1)/255.0
-            a = np.asarray([math.atan2(my_loc[1] - goal[1], my_loc[0] - goal[0])])/math.pi
-            action, prob = agent.act([r, a])
-            total_played_actions += 1
+        # last_failed = False
+        # my_loc = start
 
-            if "DISPLAY" in os.environ:
-                cv2.imshow('roi2', (r[0]*255.0).astype(np.uint8))
+        r, a = env.reset()
+        while True:
+            # roi = m.get_roi(my_loc, terrain_map, half_size=16)
+            # #cv2.imshow('roi', roi)
+            # r = np.asarray([[roi]], dtype='float32').reshape(1,32,32,1)/255.0
+            # a = np.asarray([math.atan2(my_loc[1] - goal[1], my_loc[0] - goal[0])])/math.pi
+            action, prob = agent.act([r, a])
+            # total_played_actions += 1
+
+            # f_map = env.render(viz = should_viz)
+                # cv2.imshow('roi2', (r[0]*255.0).astype(np.uint8))
+            
             # print a
+            # Make the action
+            full_state, reward, is_done, info = env.step(action)
+            agent.remember([r, a], action, prob, reward)
+            score += reward
+            r, a = full_state
 
             # print 'Action: ', action, ' agent movement: ', offsets[action]
-            my_new_loc = map(sub, my_loc, offsets[action])
-            if (grid.in_bounds(my_new_loc) and grid.passable(my_new_loc)):
-                # Possible move
+            # my_new_loc = map(sub, my_loc, offsets[action])
+            # if (grid.in_bounds(my_new_loc) and grid.passable(my_new_loc)):
+            #     # Possible move
 
-                # Get cost of going to new locaiton
-                #reward = - grid.dist(my_new_loc, goal) - grid.cost(my_loc, my_new_loc, last=last_location)
-                reward = -1
-                if (grid.dist(my_new_loc, goal) < grid.dist(my_loc, goal)):
-                    reward = +1
-                # Extra terrain rewards
-                reward -= (grid.uphill_cost(my_loc, my_new_loc) / grid.UPHILL_COST_NORM)
-                #reward = -1
-                if (grid.dist(my_new_loc, goal) <= 1.):
-                    reward += 10 #1e4
-                if total_played_actions >= allowed_moves:
-                    reward -= 10 #1e3
-                score += reward
+            #     # Get cost of going to new locaiton
+            #     #reward = - grid.dist(my_new_loc, goal) - grid.cost(my_loc, my_new_loc, last=last_location)
+            #     reward = -1
+            #     if (grid.dist(my_new_loc, goal) < grid.dist(my_loc, goal)):
+            #         reward = +1
+            #     # Extra terrain rewards
+            #     reward -= (grid.uphill_cost(my_loc, my_new_loc) / grid.UPHILL_COST_NORM)
+            #     #reward = -1
+            #     if (grid.dist(my_new_loc, goal) <= 1.):
+            #         reward += 10 #1e4
+            #     if total_played_actions >= allowed_moves:
+            #         reward -= 10 #1e3
+            #     score += reward
 
-                # Remember transition
-                agent.remember([r, a], action, prob, reward)
+            #     # Remember transition
+            #     agent.remember([r, a], action, prob, reward)
 
-                # Update locations
-                last_location = my_loc
-                my_loc = my_new_loc
+            #     # Update locations
+            #     last_location = my_loc
+            #     my_loc = my_new_loc
 
-                # Draw my new location
-                f_map[my_loc[1], my_loc[0], :] = [230, 20, 125]
-                # cv2.circle(f_map, tuple(my_loc), 1, (128, 10, 190), -1)
+            #     # Draw my new location
+            #     f_map[my_loc[1], my_loc[0], :] = [230, 20, 125]
+            #     # cv2.circle(f_map, tuple(my_loc), 1, (128, 10, 190), -1)
 
-                dist = grid.dist(my_loc, goal)
+            #     dist = grid.dist(my_loc, goal)
                 
-                if (dist <= 1.):
-                    wins += 1
-                    print 'Distance to goal: ', dist
-                    print 'Reached goal with ', fails, ' hits'
+            #     if (dist <= 1.):
+            #         wins += 1
+            #         print 'Distance to goal: ', dist
+            #         print 'Reached goal with ', fails, ' hits'
 
-                    # Train
-                    agent.prepare_training2()
-                    completeness_ratio = max(0, 1 - (grid.dist(my_loc, goal) / max(min(grid.dist(start, goal),grid.dist(my_loc, start)), 1e-4)))
-                    agent.add_completeness_ratio(completeness_ratio)
-                    # agent.train()
-                    break # break
-            else:
-                # Impossible move 
-                # agent.forget_last_action()
-                # Remember transition
-                reward = -10#0
-                agent.remember([r, a], action, prob, reward)
-                fails += 1
+            #         # Train
+            #         agent.prepare_training2()
+            #         completeness_ratio = max(0, 1 - (grid.dist(my_loc, goal) / max(min(grid.dist(start, goal),grid.dist(my_loc, start)), 1e-4)))
+            #         agent.add_completeness_ratio(completeness_ratio)
+            #         # agent.train()
+            #         break # break
+            # else:
+            #     # Impossible move 
+            #     # agent.forget_last_action()
+            #     # Remember transition
+            #     reward = -10#0
+            #     agent.remember([r, a], action, prob, reward)
+            #     fails += 1
 
-            if total_played_actions >= allowed_moves:
+            if is_done:
                 # Train model again
-                agent.prepare_training2()
-                completeness_ratio = max(0, 1 - (grid.dist(my_loc, goal) / max(min(grid.dist(start, goal),grid.dist(my_loc, start)), 1e-4)))
-                agent.add_completeness_ratio(completeness_ratio)
-                # agent.train()
-                print 'Cannot solve the current configuration... dist: ', '%.2f' % grid.dist(my_new_loc, goal)
+                agent.prepare_training_norm()
+                # completeness_ratio = 
+                agent.add_completeness_ratio(env.get_completeness_ratio())
                 break
 
-        print 'Finished epoch with ', total_played_actions, ' steps and score of ', score, ' ratio of: ', agent.get_ratio()
+        print 'Finished epoch with ', env.total_played_actions, ' steps and score of ', score, ' ratio of: ', agent.get_ratio()
         score_sum += score
         # cv2.imshow('map', terrain_map)
-        if "DISPLAY" in os.environ:
-            cv2.imshow('path', f_map)
-            cv2.waitKey(1)
-        else:
-            cv2.imwrite('path'+str(epoch%2)+'_'+str(ID)+'.jpg', f_map)
+        should_viz = "DISPLAY" in os.environ
+        f_map = env.render(viz=should_viz)
+        if not should_viz:
+            cv2.imwrite('path'+str(epoch%2)+'_'+str(ID)+'.png', f_map)
 
         if epoch > 1 and epoch % agent.traj_epochs == 0:
             print '>>> TRAINING !'
@@ -296,10 +306,10 @@ if __name__ == '__main__':
             with open(SCORES_FILE, 'a') as score_file:
                 score_file.write('%.3f, %.2f, %.2f\n' % (agent.get_ratio(), float(score_sum)/agent.traj_epochs, agent.get_completeness_ratio()))
             score_sum = 0
-
+            total_wins += agent.wins
             agent.train()
-            main_tree_map = m.draw_trees(terrain=main_terrain_map, R=np.random.randint(3, 10), freq=np.random.randint(15, 35))
-            terrain_map = np.maximum(main_tree_map, main_terrain_map) #main_terrain_map#
+            # main_tree_map = m.draw_trees(terrain=main_terrain_map, R=np.random.randint(3, 10), freq=np.random.randint(15, 35))
+            # terrain_map = np.maximum(main_tree_map, main_terrain_map) #main_terrain_map#
 
         if epoch > 1 and epoch % 10000 == 0 and "DISPLAY" not in os.environ:
             print 'Saving model..'

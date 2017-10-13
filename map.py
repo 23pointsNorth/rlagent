@@ -22,7 +22,7 @@ def draw_terrain(shape = [DEFAULT_HEIGHT, DEFAULT_WIDTH], mountains_scale=1.0, w
             n = (noise_scale ** 0) * noise((2 * noise_freq_scale) * nx, (2 * noise_freq_scale) * ny) + \
                 (noise_scale ** 1) * noise((2 * noise_freq_scale ** 1) * nx, (2 * noise_freq_scale ** 1) * ny) + \
                 (noise_scale ** 2) * noise((2 * noise_freq_scale ** 2) * nx, (2 * noise_freq_scale ** 2) * ny)
-            # print n
+            # print 'map.py : ' + n
             height_map[y, x] = (n) ** mountains_scale
 
     # Add water
@@ -34,7 +34,7 @@ def draw_terrain(shape = [DEFAULT_HEIGHT, DEFAULT_WIDTH], mountains_scale=1.0, w
 
     view_map = height_map - height_map.min()
     view_map *= (255.0/view_map.max())
-    print view_map
+
     return view_map.astype(np.uint8)
 
 
@@ -98,7 +98,6 @@ def get_pretty_map(terrain, trees, water=True):
     empty = np.zeros(terrain.shape, np.uint8)
 
     # Water
-    print terrain.min()
     water = (terrain == terrain.min()).astype(np.uint8)
     water_t = cv2.merge([water * WATER_COLOUR[i] for i in xrange(0,3)]) 
 
@@ -109,13 +108,9 @@ def get_pretty_map(terrain, trees, water=True):
     # Terrain elevation
     cmap = plt.get_cmap('terrain')
     ground_cmap = truncate_colormap(cmap, 0.235, 0.80)#(cmap, 0.235, 0.80)
-    # print ground_cmap(0.2)[:3]
     x = np.linspace(0, 1, 256, endpoint=False)
     terrain_cspace = np.fliplr(np.asarray([ground_cmap(i)[:3] for i in x]) * 255).astype(np.uint8)
     
-    # print terrain_cspace, terrain_cspace.shape
-    # print np.asarray([i for i in terrain.flatten()]).reshape(terrain.shape)
-
     terrain_r_t = np.asarray([terrain_cspace[i][0] for i in terrain.flatten()]).reshape(terrain.shape)
     terrain_g_t = np.asarray([terrain_cspace[i][1] for i in terrain.flatten()]).reshape(terrain.shape)
     terrain_b_t = np.asarray([terrain_cspace[i][2] for i in terrain.flatten()]).reshape(terrain.shape)
