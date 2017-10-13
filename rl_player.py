@@ -57,13 +57,16 @@ class PGAgent:
         self.states_a.append(state_a)
         self.rewards.append(reward)
 
-    def act(self, state):
+    def act(self, state, eval_test=False):
         aprob = self.model.predict(state, batch_size=1).flatten()
-        self.probs.append(aprob)
         prob = aprob / np.sum(aprob)
-        action = np.random.choice(self.action_size, 1, p=prob)[0]
-        if (np.random.rand() < 0.02):
-            action = np.random.randint(0, self.action_size)
+        if (not eval_test):
+            self.probs.append(aprob)
+            action = np.random.choice(self.action_size, 1, p=prob)[0]
+            if (np.random.rand() < 0.02):
+                action = np.random.randint(0, self.action_size)
+        else:
+            action = np.argmax(prob)
         return action, prob
 
     def forget_last_action(self):
@@ -154,6 +157,21 @@ class PGAgent:
 ID = os.getenv('ID', -109)
 SCORES_FILE = 'scores'+str(ID)+'.csv'
 
+def agent_eval(env, agent):
+    test_games = 30
+    wins = 0
+    for _ in xrange(test_games):
+        r,a = env.reset()
+        while True:
+            action, _ = agent.act([r, a], eval_test=True)
+            full_state, reward, is_done, _ = env.step(action)
+            r, a = full_state
+            if is_done:
+                if reward > 1:
+                    wins += 1
+                break
+    return float(wins)/test_games
+
 if __name__ == '__main__':
     # Hyper params
     epoch = 0
@@ -164,137 +182,37 @@ if __name__ == '__main__':
     agent = PGAgent()
     env = te.TerrainEnv(world_size=world_size)
 
-
-    # allowed_moves = 100
-
-    # main_terrain_map = m.draw_terrain(shape=(world_size, world_size))
-    goal_offset_size = 40
-    # main_tree_map = m.draw_trees(terrain=main_terrain_map, R=np.random.randint(3, 10), freq=np.random.randint(15, 35))
-    # terrain_map = np.maximum(main_terrain_map, main_terrain_map) #main_terrain_map#
-    # terrain_map = np.maximum(main_tree_map, main_terrain_map) #main_terrain_map#
-
     # Clear the file
     with open(SCORES_FILE, 'w') as scores_file:
-        scores_file.write('ratio,score,completeness_ratio\n')
+        scores_file.write('ratio,score,completeness_ratio,testing\n')
 
     while True:
         epoch += 1
         print '----'
         print 'ID:', str(ID), ' Epoch: ', epoch, ' w: ', total_wins + agent.wins
 
-        # f_map = m.get_pretty_map(main_terrain_map, main_tree_map)
-        # # f_map = get_pretty_map(main_terrain_map, main_tree_map)
-
-        # grid = astar.SquareGrid(terrain_map)
-
-        # # Choose a good start and end point
-        # start = grid.choose_free_loc()
-        # goal = start
-        # while grid.dist(start, goal) <= 1.0:
-        #     # After 50k epochs, make it harder
-        #     if (epoch > 1e5):
-        #         goal_offset_size = 64
-        #         allowed_moves = 400
-        #     goal_offset = (2*np.random.random(2) - 1) * (epoch % goal_offset_size + 3)
-        #     goal = np.asarray(start) + goal_offset.astype(np.int)
-        #     goal[goal < 0] = 0
-        #     goal[goal >= world_size] = world_size - 1
-        #     goal = tuple(goal)
-
-        # cv2.circle(f_map, start, 4, (120, 110, 250), -1)
-        # cv2.circle(f_map, goal, 4, (250, 110, 120), -1)
-
-        total_r_states = []
-        total_a_states = []
-        total_actions = []
-
         score = 0
-        # last_location = None
-        # total_played_actions = 0
         fails = 0
-        # last_failed = False
-        # my_loc = start
 
         r, a = env.reset()
         while True:
-            # roi = m.get_roi(my_loc, terrain_map, half_size=16)
-            # #cv2.imshow('roi', roi)
-            # r = np.asarray([[roi]], dtype='float32').reshape(1,32,32,1)/255.0
-            # a = np.asarray([math.atan2(my_loc[1] - goal[1], my_loc[0] - goal[0])])/math.pi
             action, prob = agent.act([r, a])
-            # total_played_actions += 1
 
-            # f_map = env.render(viz = should_viz)
-                # cv2.imshow('roi2', (r[0]*255.0).astype(np.uint8))
-            
-            # print a
             # Make the action
             full_state, reward, is_done, info = env.step(action)
             agent.remember([r, a], action, prob, reward)
             score += reward
             r, a = full_state
 
-            # print 'Action: ', action, ' agent movement: ', offsets[action]
-            # my_new_loc = map(sub, my_loc, offsets[action])
-            # if (grid.in_bounds(my_new_loc) and grid.passable(my_new_loc)):
-            #     # Possible move
-
-            #     # Get cost of going to new locaiton
-            #     #reward = - grid.dist(my_new_loc, goal) - grid.cost(my_loc, my_new_loc, last=last_location)
-            #     reward = -1
-            #     if (grid.dist(my_new_loc, goal) < grid.dist(my_loc, goal)):
-            #         reward = +1
-            #     # Extra terrain rewards
-            #     reward -= (grid.uphill_cost(my_loc, my_new_loc) / grid.UPHILL_COST_NORM)
-            #     #reward = -1
-            #     if (grid.dist(my_new_loc, goal) <= 1.):
-            #         reward += 10 #1e4
-            #     if total_played_actions >= allowed_moves:
-            #         reward -= 10 #1e3
-            #     score += reward
-
-            #     # Remember transition
-            #     agent.remember([r, a], action, prob, reward)
-
-            #     # Update locations
-            #     last_location = my_loc
-            #     my_loc = my_new_loc
-
-            #     # Draw my new location
-            #     f_map[my_loc[1], my_loc[0], :] = [230, 20, 125]
-            #     # cv2.circle(f_map, tuple(my_loc), 1, (128, 10, 190), -1)
-
-            #     dist = grid.dist(my_loc, goal)
-                
-            #     if (dist <= 1.):
-            #         wins += 1
-            #         print 'Distance to goal: ', dist
-            #         print 'Reached goal with ', fails, ' hits'
-
-            #         # Train
-            #         agent.prepare_training2()
-            #         completeness_ratio = max(0, 1 - (grid.dist(my_loc, goal) / max(min(grid.dist(start, goal),grid.dist(my_loc, start)), 1e-4)))
-            #         agent.add_completeness_ratio(completeness_ratio)
-            #         # agent.train()
-            #         break # break
-            # else:
-            #     # Impossible move 
-            #     # agent.forget_last_action()
-            #     # Remember transition
-            #     reward = -10#0
-            #     agent.remember([r, a], action, prob, reward)
-            #     fails += 1
-
             if is_done:
                 # Train model again
                 agent.prepare_training_norm()
-                # completeness_ratio = 
                 agent.add_completeness_ratio(env.get_completeness_ratio())
                 break
 
         print 'Finished epoch with ', env.total_played_actions, ' steps and score of ', score, ' ratio of: ', agent.get_ratio()
         score_sum += score
-        # cv2.imshow('map', terrain_map)
+
         should_viz = "DISPLAY" in os.environ
         f_map = env.render(viz=should_viz)
         if not should_viz:
@@ -304,12 +222,16 @@ if __name__ == '__main__':
             print '>>> TRAINING !'
 
             with open(SCORES_FILE, 'a') as score_file:
-                score_file.write('%.3f, %.2f, %.2f\n' % (agent.get_ratio(), float(score_sum)/agent.traj_epochs, agent.get_completeness_ratio()))
+                score_file.write('%.3f, %.2f, %.2f, ' % (agent.get_ratio(), float(score_sum)/agent.traj_epochs, agent.get_completeness_ratio()))
             score_sum = 0
             total_wins += agent.wins
             agent.train()
-            # main_tree_map = m.draw_trees(terrain=main_terrain_map, R=np.random.randint(3, 10), freq=np.random.randint(15, 35))
-            # terrain_map = np.maximum(main_tree_map, main_terrain_map) #main_terrain_map#
+
+            print '>>> Evaluation'
+            success_ratio = agent_eval(env, agent)
+            print 'Test argmax: ', success_ratio
+            with open(SCORES_FILE, 'a') as score_file:
+                score_file.write('%.2f\n' % (success_ratio))
 
         if epoch > 1 and epoch % 10000 == 0 and "DISPLAY" not in os.environ:
             print 'Saving model..'

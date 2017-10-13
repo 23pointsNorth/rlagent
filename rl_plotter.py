@@ -2,7 +2,7 @@ import csv
 import rl_player as rlp
 
 if __name__ == '__main__':
-	ratios, scores, comp_ratio = [], [], []
+	ratios, scores, comp_ratio, testing = [], [], [], []
 
 	with open('../'+rlp.SCORES_FILE) as csvfile:
 		reader = csv.DictReader(csvfile)
@@ -11,12 +11,16 @@ if __name__ == '__main__':
 			scores.append(float(row['score']))
 			if ('completeness_ratio' in row):
 				comp_ratio.append(float(row['completeness_ratio']))
+			if ('testing' in row):
+				testing.append(float(row['testing']))
 	
 	import matplotlib.pyplot as plt
 	from matplotlib.ticker import MaxNLocator
 	plt.figure(1)
 	subfig_num = 211
 	if (comp_ratio):
+		subfig_num += 100
+	if (testing):
 		subfig_num += 100
 	plt.subplot(subfig_num)
 	# plt.plot(ratios)
@@ -38,6 +42,17 @@ if __name__ == '__main__':
 		axes = plt.gca()
 		axes.set_ylim([0, 1])
 		axes.xaxis.set_major_locator(MaxNLocator(integer=True))
+
+	if (testing):
+		subfig_num += 1
+		plt.subplot(subfig_num)
+		plt.plot(testing, 'c-')
+		plt.grid()
+		plt.ylabel('Testing (argmax)')
+		axes = plt.gca()
+		axes.set_ylim([0, 1])
+		axes.xaxis.set_major_locator(MaxNLocator(integer=True))
+
 
 	# Plot scores
 	subfig_num += 1
