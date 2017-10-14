@@ -236,3 +236,4 @@ if __name__ == '__main__':
         if epoch > 1 and epoch % 10000 == 0 and "DISPLAY" not in os.environ:
             print 'Saving model..'
             agent.save('models/model_rl'+ str(epoch)+'_'+str(ID)+'.h5')
+

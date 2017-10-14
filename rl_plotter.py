@@ -16,7 +16,7 @@ if __name__ == '__main__':
 	
 	import matplotlib.pyplot as plt
 	from matplotlib.ticker import MaxNLocator
-	plt.figure(1)
+	plt.figure(1, figsize=(7, 8))
 	subfig_num = 211
 	if (comp_ratio):
 		subfig_num += 100
