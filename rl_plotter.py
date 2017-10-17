@@ -11,8 +11,10 @@ if __name__ == '__main__':
 			scores.append(float(row['score']))
 			if ('completeness_ratio' in row):
 				comp_ratio.append(float(row['completeness_ratio']))
-			if ('testing' in row):
+			if ('testing' in row) and len(row['testing']) > 0 :
 				testing.append(float(row['testing']))
+			elif testing:
+				testing.append(testing[-1])
 	
 	import matplotlib.pyplot as plt
 	from matplotlib.ticker import MaxNLocator
