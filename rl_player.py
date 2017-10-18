@@ -23,8 +23,9 @@ class PGAgent:
     '''
     def __init__(self):
         self.action_size = rll.num_classes
-        self.gamma = 0.1#0.98
+        self.gamma = 0.99
         self.learning_rate = 0.1
+        self.learning_rate_step_down = 0.05
         self.traj_epochs = 40
         self.training_epochs = 2
         self.games = 0
@@ -178,6 +179,7 @@ if __name__ == '__main__':
     total_wins = 0
     score_sum = 0
     world_size = 250
+    success_ratio = 0
 
     agent = PGAgent()
     env = te.TerrainEnv(world_size=world_size)
@@ -225,11 +227,14 @@ if __name__ == '__main__':
                 score_file.write('%.3f, %.2f, %.2f, ' % (agent.get_ratio(), float(score_sum)/agent.traj_epochs, agent.get_completeness_ratio()))
             score_sum = 0
             total_wins += agent.wins
+            if (agent.traj_epochs * 500 < epoch):
+                agent.learning_rate = agent.learning_rate_step_down
             agent.train()
 
-            print '>>> Evaluation'
-            success_ratio = agent_eval(env, agent)
-            print 'Test argmax: ', success_ratio
+            if epoch % (5 * agent.traj_epochs) == 0:
+                print '>>> Evaluation at ', epoch
+                success_ratio = agent_eval(env, agent)
+                print 'Test argmax: ', success_ratio
             with open(SCORES_FILE, 'a') as score_file:
                 score_file.write('%.2f\n' % (success_ratio))
 
