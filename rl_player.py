@@ -24,8 +24,10 @@ class PGAgent:
     def __init__(self):
         self.action_size = rll.num_classes
         self.gamma = 0.99
-        self.learning_rate = 0.1
-        self.learning_rate_step_down = 0.05
+        # self.learning_rate = 0.1
+        self.learning_rate_step_down = [0.2, 0.1, 0.05]
+        self.learning_rate_step_down_epochs = [200, 400, 600]
+        self.learning_rate_id = 0 
         self.traj_epochs = 40
         self.training_epochs = 2
         self.games = 0
@@ -116,7 +118,8 @@ class PGAgent:
         
         self.Xrmemory += self.states_roi
         self.Xamemory += self.states_a
-        self.Ymemory = np.vstack((self.Ymemory, (self.probs + self.learning_rate * np.squeeze(np.vstack([gradients])))))
+        learning_rate = self.learning_rate_step_down[self.learning_rate_id]
+        self.Ymemory = np.vstack((self.Ymemory, (self.probs + learning_rate * np.squeeze(np.vstack([gradients])))))
         self.states_roi, self.states_a, self.probs, self.gradients, self.rewards = [], [], [], [], []
 
     def get_ratio(self):
@@ -227,11 +230,19 @@ if __name__ == '__main__':
                 score_file.write('%.3f, %.2f, %.2f, ' % (agent.get_ratio(), float(score_sum)/agent.traj_epochs, agent.get_completeness_ratio()))
             score_sum = 0
             total_wins += agent.wins
-            if (agent.traj_epochs * 500 < epoch):
-                agent.learning_rate = agent.learning_rate_step_down
+
+
+
+            lr_id = next(x[0] for x in enumerate(agent.learning_rate_step_down_epochs) if x[1] > epoch // agent.traj_epochs)
+            agent.learning_rate_id = lr_id
+            print "LR ", lr_id
+            # agent.learning_rate = agent.learning_rate_step_down[lr_id]
+
+            # if (agent.traj_epochs * 500 < epoch):
+            #     agent.learning_rate = agent.learning_rate_step_down
             agent.train()
 
-            if epoch % (5 * agent.traj_epochs) == 0:
+            if epoch % (10 * agent.traj_epochs) == 0:
                 print '>>> Evaluation at ', epoch
                 success_ratio = agent_eval(env, agent)
                 print 'Test argmax: ', success_ratio

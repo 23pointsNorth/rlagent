@@ -105,10 +105,13 @@ class TerrainEnv:
         a = np.asarray([math.atan2(self.my_loc[1] - self.goal[1], self.my_loc[0] - self.goal[0])])/math.pi
         return r, a
 
-    def reset(self):
-        self.reset_counter += 1
+    def reset(self, max_goal_dist = 32, reset_reset_counter = False):
+        if reset_reset_counter:
+            self.reset_counter = 0
+        else:
+            self.reset_counter += 1
         self.main_tree_map = np.zeros(shape=self.main_terrain_map.shape)
-        self.goal_offset_size = 32
+        self.goal_offset_size = max_goal_dist
         if (self.obstacles):
             self.main_tree_map = m.draw_trees(terrain=self.main_terrain_map, R=np.random.randint(4, 10), freq=np.random.randint(10, 20))
         self.terrain_map = np.maximum(self.main_tree_map, self.main_terrain_map)
@@ -120,8 +123,10 @@ class TerrainEnv:
         while self.grid.in_bounds(self.goal) and self.grid.passable(self.goal) and self.grid.dist(self.start, self.goal) <= self.min_distance:
             # After 50k epochs, make it harder
             if (self.reset_counter > 1e5):
-                self.goal_offset_size = 64
+                self.goal_offset_size = 2*max_goal_dist
                 self.allowed_moves = 400
+                print '>>> >>> >>> [TerrainEnv] Updating max distance to ', self.goal_offset_size
+                
             goal_offset = (2 * np.random.random(2) - 1) * ((self.goal_hardness + self.reset_counter) % self.goal_offset_size + self.min_distance + 1)
             self.goal = np.asarray(self.start) + goal_offset.astype(np.int)
             self.goal = tuple(self.goal)
