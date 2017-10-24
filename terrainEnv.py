@@ -33,7 +33,7 @@ class TerrainEnv:
         self.allowed_moves = allowed_moves
         self.obstacles = obstacles
         self.goal_hardness = goal_hardness
-        self.min_distance = 3.0
+        self.min_distance = 1.5
         self.reset_counter = 0
         self.sparse_reward = sparse_reward
         self.angle_only = angle_only
@@ -110,9 +110,10 @@ class TerrainEnv:
             self.reset_counter = 0
         else:
             self.reset_counter += 1
-        self.main_tree_map = np.zeros(shape=self.main_terrain_map.shape)
+        if 'main_tree_map' not in locals(): 
+            self.main_tree_map = np.zeros(shape=self.main_terrain_map.shape)
         self.goal_offset_size = max_goal_dist
-        if (self.obstacles):
+        if (self.obstacles and np.random.random_sample() < 0.1): # Refresh tree map in 10% of cases
             self.main_tree_map = m.draw_trees(terrain=self.main_terrain_map, R=np.random.randint(4, 10), freq=np.random.randint(10, 20))
         self.terrain_map = np.maximum(self.main_tree_map, self.main_terrain_map)
 

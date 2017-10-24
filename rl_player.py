@@ -23,10 +23,10 @@ class PGAgent:
     '''
     def __init__(self):
         self.action_size = rll.num_classes
-        self.gamma = 0.99
+        self.gamma = 0.95
         # self.learning_rate = 0.1
         self.learning_rate_step_down = [0.2, 0.1, 0.05]
-        self.learning_rate_step_down_epochs = [200, 400, 600]
+        self.learning_rate_step_down_epochs = [200, 400, 600, 100000]
         self.learning_rate_id = 0 
         self.traj_epochs = 40
         self.training_epochs = 2
@@ -162,9 +162,9 @@ ID = os.getenv('ID', -109)
 SCORES_FILE = 'scores'+str(ID)+'.csv'
 
 def agent_eval(env, agent):
-    test_games = 30
+    test_games = 60
     wins = 0
-    for _ in xrange(test_games):
+    for i in xrange(test_games):
         r,a = env.reset()
         while True:
             action, _ = agent.act([r, a], eval_test=True)
@@ -173,6 +173,9 @@ def agent_eval(env, agent):
             if is_done:
                 if reward > 1:
                     wins += 1
+                # Save state
+                img = env.render(viz = False)
+                cv2.imwrite('eval_traj_' + str(ID) + '_' + str(i) + '.png', img)
                 break
     return float(wins)/test_games
 
@@ -185,7 +188,7 @@ if __name__ == '__main__':
     success_ratio = 0
 
     agent = PGAgent()
-    env = te.TerrainEnv(world_size=world_size)
+    env = te.TerrainEnv(world_size=world_size, obstacles=True, env_cost=True)
 
     # Clear the file
     with open(SCORES_FILE, 'w') as scores_file:
@@ -232,8 +235,8 @@ if __name__ == '__main__':
             total_wins += agent.wins
 
 
-
             lr_id = next(x[0] for x in enumerate(agent.learning_rate_step_down_epochs) if x[1] > epoch // agent.traj_epochs)
+            lr_id = lr_id if lr_id < len(agent.learning_rate_step_down) else len(agent.learning_rate_step_down)-1
             agent.learning_rate_id = lr_id
             print "LR ", lr_id
             # agent.learning_rate = agent.learning_rate_step_down[lr_id]
@@ -242,7 +245,7 @@ if __name__ == '__main__':
             #     agent.learning_rate = agent.learning_rate_step_down
             agent.train()
 
-            if epoch % (10 * agent.traj_epochs) == 0:
+            if epoch % (5 * agent.traj_epochs) == 0:
                 print '>>> Evaluation at ', epoch
                 success_ratio = agent_eval(env, agent)
                 print 'Test argmax: ', success_ratio
