@@ -103,9 +103,9 @@ class PGAgent:
     #     self.Ymemory = np.vstack((self.Ymemory, (self.probs + self.learning_rate * np.squeeze(np.vstack([gradients])))))
     #     self.states_roi, self.states_a, self.probs, self.gradients, self.rewards = [], [], [], [], []
 
-    def prepare_training_norm(self):
+    def prepare_training_norm(self, info=None):
         self.games += 1
-        if (self.rewards[-1] > 1): #This assumes last reward is strictly > 1
+        if (self.rewards[-1] > 1 or info is 'Done'): #This assumes last reward is strictly > 1
             self.wins += 1
         gradients = np.vstack(self.gradients)
         rewards = np.vstack(self.rewards)
@@ -168,10 +168,10 @@ def agent_eval(env, agent):
         r,a = env.reset()
         while True:
             action, _ = agent.act([r, a], eval_test=True)
-            full_state, reward, is_done, _ = env.step(action)
+            full_state, reward, is_done, info = env.step(action)
             r, a = full_state
             if is_done:
-                if reward > 1:
+                if reward > 1 or info is 'Done': # was 1
                     wins += 1
                 # Save state
                 img = env.render(viz = False)
@@ -188,7 +188,8 @@ if __name__ == '__main__':
     success_ratio = 0
 
     agent = PGAgent()
-    env = te.TerrainEnv(world_size=world_size, obstacles=True, env_cost=True)
+    env = te.TerrainEnv(world_size=world_size, obstacles=True, env_cost=True, sparse_reward=False,
+                        env_cost_scale=3.0)
 
     # Clear the file
     with open(SCORES_FILE, 'w') as scores_file:
@@ -214,7 +215,7 @@ if __name__ == '__main__':
 
             if is_done:
                 # Train model again
-                agent.prepare_training_norm()
+                agent.prepare_training_norm(info)
                 agent.add_completeness_ratio(env.get_completeness_ratio())
                 break
 

@@ -27,7 +27,7 @@ class TerrainEnv:
 
     def __init__(self, world_size = 128, instance_name='TerrainEnv', obstacles=False, 
                  goal_hardness = 31, allowed_moves = 100, sparse_reward=False, angle_only=False,
-                 env_cost=False):
+                 env_cost=False, env_cost_scale=1.0):
         self.instance_name = instance_name
         self.world_size = world_size
         self.allowed_moves = allowed_moves
@@ -38,6 +38,7 @@ class TerrainEnv:
         self.sparse_reward = sparse_reward
         self.angle_only = angle_only
         self.env_cost = env_cost
+        self.env_cost_scale = env_cost_scale
 
         # Move terrain and tree generation in reset if needed
         self.main_terrain_map = m.draw_terrain(shape=(self.world_size, self.world_size))
@@ -60,8 +61,8 @@ class TerrainEnv:
                 else:
                     reward = -1
 
-                if (self.env_cost):
-                    reward -= (self.grid.uphill_cost(self.my_loc, my_new_loc) / self.grid.UPHILL_COST_NORM)
+            if (self.env_cost):
+                reward -= (self.grid.uphill_cost(self.my_loc, my_new_loc) / self.grid.UPHILL_COST_NORM) * self.env_cost_scale
 
             if (self.grid.dist(my_new_loc, self.goal) <= self.min_distance):
                 info = 'Done'
@@ -110,7 +111,7 @@ class TerrainEnv:
             self.reset_counter = 0
         else:
             self.reset_counter += 1
-        if 'main_tree_map' not in locals(): 
+        if 'main_tree_map' not in self.__dict__: 
             self.main_tree_map = np.zeros(shape=self.main_terrain_map.shape)
         self.goal_offset_size = max_goal_dist
         if (self.obstacles and np.random.random_sample() < 0.1): # Refresh tree map in 10% of cases
