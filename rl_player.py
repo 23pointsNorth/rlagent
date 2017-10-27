@@ -195,6 +195,7 @@ if __name__ == '__main__':
     success_ratio = 0
     weight_ws = []
     scores_ws = []
+    SIMP_ON = False
 
     agent = PGAgent(model = rll.create_model(), action_size = rll.num_classes)
     simp_agent = PGAgent(model = rll.create_simp_model(), action_size = 32*32+1)
@@ -216,7 +217,7 @@ if __name__ == '__main__':
 
         r, a = env.reset()
         while True:
-            w, mu = simp_agent.act_simp([r, a])
+            w, mu = simp_agent.act_simp([r, a]) if (SIMP_ON) else np.ones(32*32+1), np.ones(32*32+1)
             weight_ws.append(w)
             wr = (w[:-1].reshape((int(sqrt(len(w[:-1]))), -1)) * r.reshape((r.shape[1], -1))).reshape(r.shape)
             wa = w[-1] * a
@@ -225,7 +226,8 @@ if __name__ == '__main__':
             # Make the action
             full_state, reward, is_done, info = env.step(action)
             agent.remember([wr, wa], action, prob, reward)
-            simp_agent.remember_simp([r, a], w, mu, reward - sum(w))
+            if (SIMP_ON):
+                simp_agent.remember_simp([r, a], w, mu, reward - sum(w))
             score += reward
             r, a = full_state
 
@@ -233,7 +235,8 @@ if __name__ == '__main__':
                 # Train model again
                 agent.prepare_training_norm(info)
                 agent.add_completeness_ratio(env.get_completeness_ratio())
-                simp_agent.prepare_training_norm(info)
+                if (SIMP_ON):
+                    simp_agent.prepare_training_norm(info)
                 break
 
         print 'Finished epoch with ', env.total_played_actions, ' steps and score of ', score, ' ratio of: ', agent.get_ratio()
@@ -262,7 +265,8 @@ if __name__ == '__main__':
             # if (agent.traj_epochs * 500 < epoch):
             #     agent.learning_rate = agent.learning_rate_step_down
             agent.train()
-            simp_agent.train()
+            if SIMP_ON:
+                simp_agent.train()
 
             if epoch % (5 * agent.traj_epochs) == 0:
                 print '>>> Evaluation at ', epoch
