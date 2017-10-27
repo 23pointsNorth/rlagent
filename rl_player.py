@@ -3,6 +3,8 @@ import cv2
 import numpy as np
 import os
 
+from math import sqrt
+
 import terrainEnv as te
 import map as m
 # from map import get_roi, get_pretty_map
@@ -15,14 +17,14 @@ import keras
 from keras.utils import to_categorical
 from keras.optimizers import SGD, Adam, Adamax, Adagrad
 
-offsets = [[+1, 0], [+1, +1], [0, +1], [-1, +1], [-1, 0], [-1, -1], [0, -1], [+1, -1], [+1, 0]] # x,y
+offsets = [[+1, 0], [+1, +1], [0, +1], [-1, +1], [-1, 0], [-1, -1], [0, -1], [+1, -1], [+1, 0]] # x,y 
 
 class PGAgent:
     '''
     Based on https://github.com/keon/policy-gradient
     '''
-    def __init__(self):
-        self.action_size = rll.num_classes
+    def __init__(self, model, action_size):
+        self.action_size = action_size
         self.gamma = 0.95
         # self.learning_rate = 0.1
         self.learning_rate_step_down = [0.2, 0.1, 0.05]
@@ -40,8 +42,8 @@ class PGAgent:
         self.probs = []
         self.Xrmemory = []#np.empty(shape=(0,rll.img_rows, rll.img_cols, 1))
         self.Xamemory = []#np.empty(shape=(0,))
-        self.Ymemory = np.empty(shape=(0, rll.num_classes))
-        self.model = rll.create_model() # 'model.h5'
+        self.Ymemory = np.empty(shape=(0, self.action_size))
+        self.model = model # 'model.h5'
         self._config_model()
         self.model.summary()
 
@@ -60,6 +62,15 @@ class PGAgent:
         self.states_a.append(state_a)
         self.rewards.append(reward)
 
+    def remember_simp(self, state, action, prob, reward):
+
+        self.gradients.append(action - prob)
+        # print "remembering ", np.asarray(self.gradients).shape
+        state_roi, state_a = state
+        self.states_roi.append(state_roi)
+        self.states_a.append(state_a)
+        self.rewards.append(reward)
+
     def act(self, state, eval_test=False):
         aprob = self.model.predict(state, batch_size=1).flatten()
         prob = aprob / np.sum(aprob)
@@ -71,6 +82,15 @@ class PGAgent:
         else:
             action = np.argmax(prob)
         return action, prob
+
+    def act_simp(self, state):
+        mu = self.model.predict(state, batch_size=1).flatten()
+        std = 0.05
+        cause = np.random.normal(loc=mu, scale=std)
+        cause[cause > 1.0] = 1.0
+        cause[cause < 0] = 0
+        self.probs.append(cause)
+        return cause, mu
 
     def forget_last_action(self):
         self.probs = self.probs[:-1]
@@ -84,24 +104,6 @@ class PGAgent:
             running_add = running_add * self.gamma + rewards[t]
             discounted_rewards[t] = running_add
         return discounted_rewards
-
-    # def prepare_training(self):
-    #     self.games += 1
-    #     if (self.rewards[-1] > 0):
-    #         self.wins += 1
-    #     gradients = np.vstack(self.gradients)
-    #     rewards = np.vstack(self.rewards)
-    #     rewards = self.discount_rewards(rewards)
-    #     div_rew = np.std(rewards - np.mean(rewards))
-    #     if (div_rew == 0):
-    #         div_rew = np.finfo(np.float32).eps
-    #     rewards = rewards / div_rew
-    #     gradients *= rewards
-        
-    #     self.Xrmemory += self.states_roi
-    #     self.Xamemory += self.states_a
-    #     self.Ymemory = np.vstack((self.Ymemory, (self.probs + self.learning_rate * np.squeeze(np.vstack([gradients])))))
-    #     self.states_roi, self.states_a, self.probs, self.gradients, self.rewards = [], [], [], [], []
 
     def prepare_training_norm(self, info=None):
         self.games += 1
@@ -119,6 +121,11 @@ class PGAgent:
         self.Xrmemory += self.states_roi
         self.Xamemory += self.states_a
         learning_rate = self.learning_rate_step_down[self.learning_rate_id]
+        
+        # print 'pretrain norm'
+        # print np.asarray(self.Ymemory).shape
+        # print np.asarray(self.probs).shape
+        # print (learning_rate * np.squeeze(np.vstack([gradients]))).shape
         self.Ymemory = np.vstack((self.Ymemory, (self.probs + learning_rate * np.squeeze(np.vstack([gradients])))))
         self.states_roi, self.states_a, self.probs, self.gradients, self.rewards = [], [], [], [], []
 
@@ -143,7 +150,7 @@ class PGAgent:
         print '[PGAgent] ' + 'Model updated on last batch!'
         self.states_roi, self.states_a, self.probs, self.gradients, self.rewards = [], [], [], [], []
         self.Xrmemory, self.Xamemory = [], []
-        self.Ymemory = np.empty(shape=(0, rll.num_classes))
+        self.Ymemory = np.empty(shape=(0, self.action_size))
         self.games, self.wins = 0, 0
         self.completeness_ratio = []
 
@@ -186,9 +193,13 @@ if __name__ == '__main__':
     score_sum = 0
     world_size = 250
     success_ratio = 0
+    weight_ws = []
+    scores_ws = []
 
-    agent = PGAgent()
-    env = te.TerrainEnv(world_size=world_size, obstacles=True, env_cost=True, sparse_reward=False,
+    agent = PGAgent(model = rll.create_model(), action_size = rll.num_classes)
+    simp_agent = PGAgent(model = rll.create_simp_model(), action_size = 32*32+1)
+    env = te.TerrainEnv(world_size=world_size, obstacles=True, 
+                        env_cost=True, sparse_reward=False,
                         env_cost_scale=3.0)
 
     # Clear the file
@@ -205,11 +216,16 @@ if __name__ == '__main__':
 
         r, a = env.reset()
         while True:
-            action, prob = agent.act([r, a])
+            w, mu = simp_agent.act_simp([r, a])
+            weight_ws.append(w)
+            wr = (w[:-1].reshape((int(sqrt(len(w[:-1]))), -1)) * r.reshape((r.shape[1], -1))).reshape(r.shape)
+            wa = w[-1] * a
+            action, prob = agent.act([wr, wa])
 
             # Make the action
             full_state, reward, is_done, info = env.step(action)
-            agent.remember([r, a], action, prob, reward)
+            agent.remember([wr, wa], action, prob, reward)
+            simp_agent.remember_simp([r, a], w, mu, reward - sum(w))
             score += reward
             r, a = full_state
 
@@ -217,10 +233,12 @@ if __name__ == '__main__':
                 # Train model again
                 agent.prepare_training_norm(info)
                 agent.add_completeness_ratio(env.get_completeness_ratio())
+                simp_agent.prepare_training_norm(info)
                 break
 
         print 'Finished epoch with ', env.total_played_actions, ' steps and score of ', score, ' ratio of: ', agent.get_ratio()
         score_sum += score
+        scores_ws.append(score)
 
         should_viz = "DISPLAY" in os.environ
         f_map = env.render(viz=should_viz)
@@ -235,7 +253,6 @@ if __name__ == '__main__':
             score_sum = 0
             total_wins += agent.wins
 
-
             lr_id = next(x[0] for x in enumerate(agent.learning_rate_step_down_epochs) if x[1] > epoch // agent.traj_epochs)
             lr_id = lr_id if lr_id < len(agent.learning_rate_step_down) else len(agent.learning_rate_step_down)-1
             agent.learning_rate_id = lr_id
@@ -245,6 +262,7 @@ if __name__ == '__main__':
             # if (agent.traj_epochs * 500 < epoch):
             #     agent.learning_rate = agent.learning_rate_step_down
             agent.train()
+            simp_agent.train()
 
             if epoch % (5 * agent.traj_epochs) == 0:
                 print '>>> Evaluation at ', epoch

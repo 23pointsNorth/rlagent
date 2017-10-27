@@ -68,6 +68,45 @@ def create_model(weights_path=None):
                   ] )
     return model
 
+def create_simp_model(weights_path=None):
+    img_input_shape = (img_rows, img_cols, 1)
+    goal_input_shape = (1, )
+    # Model
+    img_input = Input(shape=img_input_shape, dtype='float32', name='img_input')
+    x = Conv2D(64, kernel_size=(3, 3), activation='relu')(img_input)
+    x = Conv2D(32, kernel_size=(3, 3), activation='relu')(x)
+    x = MaxPooling2D(pool_size=(2, 2))(x)
+    x = Conv2D(16, kernel_size=(3, 3), activation='relu')(x)
+    x = Conv2D(8, kernel_size=(3, 3), activation='relu')(x)
+    # x = Conv2D(32, kernel_size=(3, 3), activation='relu')(x)
+    # x = Dropout(0.25)(x)
+    # x = Conv2D(64, kernel_size=(3, 3), activation='relu')(x)
+    x = MaxPooling2D(pool_size=(2, 2))(x)
+    x = Conv2D(4, kernel_size=(3, 3), activation='relu')(x)
+    # x = Dropout(0.25)(x)
+    x = Flatten()(x)
+
+    goal_input = Input(shape=goal_input_shape, dtype='float32', name='goal_input')
+    x = concatenate([x, goal_input])
+
+    x = Dense(64, activation='relu')(x)
+    x = Dropout(0.1)(x)
+    x = Dense(32, activation='relu')(x)
+    out = Dense(img_rows*img_cols*1 + 1, activation='sigmoid')(x) #softmax
+
+    model = Model(inputs = [img_input, goal_input], outputs = out)
+    if weights_path:
+        model.load_weights(weights_path)
+        print('Loaded weights from ' + weights_path)
+
+    optimizer = Adamax(lr=0.02, clipnorm=1e-6, clipvalue=1e6)
+    model.compile(loss=keras.losses.categorical_crossentropy, #mse mae
+                  optimizer=optimizer, # keras.optimizers.Adadelta()
+                  metrics=[ 'accuracy'
+                  # 'mae', abs_diff
+                  ] )
+    return model
+
 def train_test_split(data1, data2, out, val_ratio=0.2):
     print 'out ', out, len(out)
     l = len(out)
