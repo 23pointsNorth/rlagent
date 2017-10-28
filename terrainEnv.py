@@ -128,11 +128,11 @@ class TerrainEnv:
                 self.goal_offset_size = 2*max_goal_dist
                 self.allowed_moves = 400
                 print '>>> >>> >>> [TerrainEnv] Updating max distance to ', self.goal_offset_size
-                if hard:
-                    dist = max_goal_dist
-                else:
-                    dist = (self.goal_hardness + self.reset_counter) % self.goal_offset_size
-            goal_offset = (2 * np.random.random(2) - 1) * (dist + self.min_distance + 1)
+            
+            gdist = (self.goal_hardness + self.reset_counter) % self.goal_offset_size
+            if hard:
+                gdist = max_goal_dist
+            goal_offset = (2 * np.random.random(2) - 1) * (gdist + self.min_distance + 1)
             self.goal = np.asarray(self.start) + goal_offset.astype(np.int)
             self.goal = tuple(self.goal)
 
