@@ -172,7 +172,7 @@ def agent_eval(env, agent):
     test_games = 60
     wins = 0
     for i in xrange(test_games):
-        r,a = env.reset()
+        r,a = env.reset(hard=True)
         while True:
             action, _ = agent.act([r, a], eval_test=True)
             full_state, reward, is_done, info = env.step(action)
@@ -199,9 +199,9 @@ if __name__ == '__main__':
 
     agent = PGAgent(model = rll.create_model(), action_size = rll.num_classes)
     simp_agent = PGAgent(model = rll.create_simp_model(), action_size = 32*32+1)
-    env = te.TerrainEnv(world_size=world_size, obstacles=True, 
-                        env_cost=True, sparse_reward=False,
-                        env_cost_scale=3.0)
+    env = te.TerrainEnv(world_size=world_size, obstacles=False, 
+                        env_cost=False, sparse_reward=True,
+                        env_cost_scale=0.0)
 
     # Clear the file
     with open(SCORES_FILE, 'w') as scores_file:

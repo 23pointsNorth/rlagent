@@ -106,7 +106,7 @@ class TerrainEnv:
         a = np.asarray([math.atan2(self.my_loc[1] - self.goal[1], self.my_loc[0] - self.goal[0])])/math.pi
         return r, a
 
-    def reset(self, max_goal_dist = 32, reset_reset_counter = False):
+    def reset(self, max_goal_dist = 32, reset_reset_counter = False, hard=False):
         if reset_reset_counter:
             self.reset_counter = 0
         else:
@@ -128,8 +128,11 @@ class TerrainEnv:
                 self.goal_offset_size = 2*max_goal_dist
                 self.allowed_moves = 400
                 print '>>> >>> >>> [TerrainEnv] Updating max distance to ', self.goal_offset_size
-                
-            goal_offset = (2 * np.random.random(2) - 1) * ((self.goal_hardness + self.reset_counter) % self.goal_offset_size + self.min_distance + 1)
+                if hard:
+                    dist = max_goal_dist
+                else:
+                    dist = (self.goal_hardness + self.reset_counter) % self.goal_offset_size
+            goal_offset = (2 * np.random.random(2) - 1) * (dist + self.min_distance + 1)
             self.goal = np.asarray(self.start) + goal_offset.astype(np.int)
             self.goal = tuple(self.goal)
 
