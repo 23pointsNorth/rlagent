@@ -186,6 +186,8 @@ def agent_eval(env, agent):
             action, _ = agent.act([r, a], eval_test=True)
             full_state, reward, is_done, info = env.step(action)
             r, a = full_state
+            if (len(reward) > 1):
+                reward = reward[0]
             if is_done:
                 if reward > 1 or info is 'Done': # was 1
                     wins += 1
