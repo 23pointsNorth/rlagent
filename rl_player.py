@@ -27,7 +27,7 @@ class PGAgent:
         self.action_size = action_size
         self.gamma = 0.95
         # self.learning_rate = 0.1
-        self.learning_rate_step_down = [0.2, 0.1, 0.05]
+        self.learning_rate_step_down = [0.1, 0.1, 0.1]
         self.learning_rate_step_down_epochs = [200, 400, 600, 100000]
         self.learning_rate_id = 0 
         self.traj_epochs = 40
@@ -39,6 +39,7 @@ class PGAgent:
         self.states_a = []
         self.gradients = []
         self.rewards = []
+        self.insta_rewards = []
         self.probs = []
         self.Xrmemory = []#np.empty(shape=(0,rll.img_rows, rll.img_cols, 1))
         self.Xamemory = []#np.empty(shape=(0,))
@@ -60,7 +61,11 @@ class PGAgent:
         state_roi, state_a = state
         self.states_roi.append(state_roi)
         self.states_a.append(state_a)
-        self.rewards.append(reward)
+        if (len(reward) > 1):
+            self.rewards.append(reward[0])
+            self.insta_rewards.append(reward[1])
+        else:
+            self.rewards.append(reward)
 
     def remember_simp(self, state, action, prob, reward):
 
@@ -69,7 +74,11 @@ class PGAgent:
         state_roi, state_a = state
         self.states_roi.append(state_roi)
         self.states_a.append(state_a)
-        self.rewards.append(reward)
+        if (len(reward) > 1):
+            self.rewards.append(reward[0])
+            self.insta_rewards.append(reward[1])
+        else:
+            self.rewards.append(reward)
 
     def act(self, state, eval_test=False):
         aprob = self.model.predict(state, batch_size=1).flatten()
@@ -111,7 +120,7 @@ class PGAgent:
             self.wins += 1
         gradients = np.vstack(self.gradients)
         rewards = np.vstack(self.rewards)
-        rewards = self.discount_rewards(rewards)
+        rewards = self.discount_rewards(rewards) + np.vstack(self.insta_rewards)
         div_rew = np.std(rewards - np.mean(rewards))
         if (div_rew == 0):
             div_rew = 1e-4
@@ -127,7 +136,7 @@ class PGAgent:
         # print np.asarray(self.probs).shape
         # print (learning_rate * np.squeeze(np.vstack([gradients]))).shape
         self.Ymemory = np.vstack((self.Ymemory, (self.probs + learning_rate * np.squeeze(np.vstack([gradients])))))
-        self.states_roi, self.states_a, self.probs, self.gradients, self.rewards = [], [], [], [], []
+        self.states_roi, self.states_a, self.probs, self.gradients, self.rewards, self.insta_rewards = [], [], [], [], [], []
 
     def get_ratio(self):
         return float(self.wins)/self.games
@@ -198,7 +207,8 @@ if __name__ == '__main__':
     SIMP_ON = False
 
     agent = PGAgent(model = rll.create_model(), action_size = rll.num_classes)
-    simp_agent = PGAgent(model = rll.create_simp_model(), action_size = 32*32+1)
+    if SIMP_ON:
+        simp_agent = PGAgent(model = rll.create_simp_model(), action_size = 32*32+1)
     env = te.TerrainEnv(world_size=world_size, obstacles=False, 
                         env_cost=False, sparse_reward=True,
                         env_cost_scale=0.0)
@@ -227,8 +237,9 @@ if __name__ == '__main__':
             full_state, reward, is_done, info = env.step(action)
             agent.remember([wr, wa], action, prob, reward)
             if (SIMP_ON):
-                simp_agent.remember_simp([r, a], w, mu, reward - sum(w))
-            score += reward
+                simp_reward = [reward[0], reward[1] - sum(w)]
+                simp_agent.remember_simp([r, a], w, mu, simp_reward)
+            score += sum(reward)
             r, a = full_state
 
             if is_done:

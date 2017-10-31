@@ -45,9 +45,14 @@ class TerrainEnv:
         self.reset()        
         
     def step(self, action):
+        '''
+        returns state, reward, is_done, info
+        '''
         self.total_played_actions += 1
         my_new_loc = map(sub, self.my_loc, self.action_space.offsets[action])
         done = False
+        insta_reward = 0
+        reward = 0
         if (self.grid.in_bounds(my_new_loc) and self.grid.passable(my_new_loc)):
             # Possible move
             info = 'Possible move ' + str(action)
@@ -57,12 +62,12 @@ class TerrainEnv:
             else:
                 # reward = -self.grid.dist(my_new_loc, self.goal) - self.grid.cost(self.my_loc, my_new_loc, last=self.last_location)
                 if (self.grid.dist(my_new_loc, self.goal) < self.grid.dist(self.my_loc, self.goal)):
-                    reward = +1
+                    insta_reward = +1
                 else:
-                    reward = -1
+                    insta_reward = -1
 
             if (self.env_cost):
-                reward -= (self.grid.uphill_cost(self.my_loc, my_new_loc) / self.grid.UPHILL_COST_NORM) * self.env_cost_scale
+                insta_reward -= (self.grid.uphill_cost(self.my_loc, my_new_loc) / self.grid.UPHILL_COST_NORM) * self.env_cost_scale
 
             if (self.grid.dist(my_new_loc, self.goal) <= self.min_distance):
                 info = 'Done'
@@ -97,7 +102,7 @@ class TerrainEnv:
         if (self.angle_only):
             return a, reward, done, info
         else:
-            return [r, a], reward, done, info
+            return [r, a], [reward, insta_reward], done, info
 
     def observe(self):
         roi = astar.get_roi(self.my_loc, self.terrain_map, half_size=16)
