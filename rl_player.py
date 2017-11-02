@@ -158,6 +158,8 @@ class PGAgent:
     def save(self, name):
         self.model.save_weights(name)
 
+
+SIMP_ON = os.getenv('SIMP', False) is 'True'
 ID = os.getenv('ID', 'not_specified')
 SCORES_FILE = 'scores' + str(ID) + '.csv'
 
@@ -190,14 +192,14 @@ if __name__ == '__main__':
     success_ratio = 0
     weight_ws = []
     scores_ws = []
-    SIMP_ON = False
 
     agent = PGAgent(model = rll.create_model(), action_size = rll.num_classes)
     if SIMP_ON:
+        print 'Initializing Simplification agent'
         simp_agent = PGAgent(model = rll.create_simp_model(), action_size = 32*32+1)
     env = te.TerrainEnv(world_size=world_size, obstacles=True, 
                         env_cost=True, sparse_reward=False,
-                        env_cost_scale=10.0)
+                        env_cost_scale=50.0)
 
     # Clear the file
     with open(SCORES_FILE, 'w') as scores_file:
