@@ -110,7 +110,7 @@ class PGAgent:
             self.wins += 1
         gradients = np.vstack(self.gradients)
         rewards = np.vstack(self.rewards)
-        rewards = self.discount_rewards(rewards) + 
+        rewards = self.discount_rewards(rewards) + \
                         np.vstack(self.insta_rewards).astype(np.float32)
         rewards -= np.mean(rewards)
         div_rew = np.std(rewards)
@@ -123,7 +123,7 @@ class PGAgent:
         self.Xamemory += self.states_a
         learning_rate = self.learning_rate_step_down[self.learning_rate_id]
         
-        self.Ymemory = np.vstack((self.Ymemory, (self.probs + 
+        self.Ymemory = np.vstack((self.Ymemory, (self.probs + \
                         learning_rate * np.squeeze(np.vstack([gradients])))))
         self.states_roi, self.states_a, self.probs, self.gradients = [], [], [], []
         self.rewards, self.insta_rewards = [], []
