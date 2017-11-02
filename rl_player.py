@@ -105,8 +105,8 @@ class PGAgent:
         self.probs = self.probs[:-1]
 
     def discount_rewards(self, rewards):
-        discounted_rewards = np.zeros_like(rewards)
-        running_add = 0
+        discounted_rewards = np.zeros_like(rewards, dtype=np.float32)
+        running_add = 0.0
         for t in reversed(range(0, rewards.size)):
             # if rewards[t] != 0: # TEST
             #     running_add = 0
@@ -120,8 +120,9 @@ class PGAgent:
             self.wins += 1
         gradients = np.vstack(self.gradients)
         rewards = np.vstack(self.rewards)
-        rewards = self.discount_rewards(rewards) + np.vstack(self.insta_rewards)
-        div_rew = np.std(rewards - np.mean(rewards))
+        rewards = self.discount_rewards(rewards) + np.vstack(self.insta_rewards).astype(np.float32)
+        rewards -= np.mean(rewards)
+        div_rew = np.std(rewards)
         if (div_rew == 0):
             div_rew = 1e-4
         rewards = rewards / div_rew
@@ -211,9 +212,9 @@ if __name__ == '__main__':
     agent = PGAgent(model = rll.create_model(), action_size = rll.num_classes)
     if SIMP_ON:
         simp_agent = PGAgent(model = rll.create_simp_model(), action_size = 32*32+1)
-    env = te.TerrainEnv(world_size=world_size, obstacles=False, 
-                        env_cost=False, sparse_reward=True,
-                        env_cost_scale=0.0)
+    env = te.TerrainEnv(world_size=world_size, obstacles=True, 
+                        env_cost=True, sparse_reward=False,
+                        env_cost_scale=10.0)
 
     # Clear the file
     with open(SCORES_FILE, 'w') as scores_file:
