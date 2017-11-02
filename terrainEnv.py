@@ -85,7 +85,7 @@ class TerrainEnv:
             if (self.sparse_reward):
                 reward = -1.0
             else:
-                reward = -10
+                reward = -10**2.5
             done = True #####
             info = 'Impossible move ' + str(self.my_loc) + str(my_new_loc) + str(self.grid.in_bounds(my_new_loc)) #+ str(self.grid.passable(my_new_loc))
 

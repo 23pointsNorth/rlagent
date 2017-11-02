@@ -53,7 +53,7 @@ def create_model(weights_path=None):
     x = Dense(64, activation='relu')(x)
     x = Dropout(0.1)(x)
     x = Dense(32, activation='relu')(x)
-    out = Dense(num_classes, activation='sigmoid')(x) #softmax
+    out = Dense(num_classes, activation='softmax')(x) #softmax
 
     model = Model(inputs = [img_input, goal_input], outputs = out)
     if weights_path:

@@ -7,7 +7,6 @@ from math import sqrt
 
 import terrainEnv as te
 import map as m
-# from map import get_roi, get_pretty_map
 import astar as astar
 import h5py
 from operator import add, sub
@@ -20,14 +19,10 @@ from keras.optimizers import SGD, Adam, Adamax, Adagrad
 offsets = [[+1, 0], [+1, +1], [0, +1], [-1, +1], [-1, 0], [-1, -1], [0, -1], [+1, -1], [+1, 0]] # x,y 
 
 class PGAgent:
-    '''
-    Based on https://github.com/keon/policy-gradient
-    '''
     def __init__(self, model, action_size):
         self.action_size = action_size
-        self.gamma = 0.95
-        # self.learning_rate = 0.1
-        self.learning_rate_step_down = [0.1, 0.1, 0.1]
+        self.gamma = 0.97
+        self.learning_rate_step_down = [0.1, 0.075, 0.05]
         self.learning_rate_step_down_epochs = [200, 400, 600, 100000]
         self.learning_rate_id = 0 
         self.traj_epochs = 40
@@ -41,18 +36,17 @@ class PGAgent:
         self.rewards = []
         self.insta_rewards = []
         self.probs = []
-        self.Xrmemory = []#np.empty(shape=(0,rll.img_rows, rll.img_cols, 1))
-        self.Xamemory = []#np.empty(shape=(0,))
+        self.Xrmemory = []
+        self.Xamemory = []
         self.Ymemory = np.empty(shape=(0, self.action_size))
-        self.model = model # 'model.h5'
+        self.model = model
         self._config_model()
         self.model.summary()
 
     def _config_model(self):
-        optimizer = Adagrad(lr=0.002) #.002self.learning_rate)
+        optimizer = Adagrad(lr=0.002)
         self.model.compile(loss=keras.losses.categorical_crossentropy,
-                      optimizer=optimizer, 
-                      metrics=['accuracy'] )
+                      optimizer=optimizer, metrics=['accuracy'] )
 
     def remember(self, state, action, prob, reward):
         y = np.zeros([self.action_size])
@@ -68,9 +62,7 @@ class PGAgent:
             self.rewards.append(reward)
 
     def remember_simp(self, state, action, prob, reward):
-
         self.gradients.append(action - prob)
-        # print "remembering ", np.asarray(self.gradients).shape
         state_roi, state_a = state
         self.states_roi.append(state_roi)
         self.states_a.append(state_a)
@@ -108,19 +100,18 @@ class PGAgent:
         discounted_rewards = np.zeros_like(rewards, dtype=np.float32)
         running_add = 0.0
         for t in reversed(range(0, rewards.size)):
-            # if rewards[t] != 0: # TEST
-            #     running_add = 0
             running_add = running_add * self.gamma + rewards[t]
             discounted_rewards[t] = running_add
         return discounted_rewards
 
     def prepare_training_norm(self, info=None):
         self.games += 1
-        if (self.rewards[-1] > 1 or info is 'Done'): #This assumes last reward is strictly > 1
+        if (self.rewards[-1] > 1 or info is 'Done'):
             self.wins += 1
         gradients = np.vstack(self.gradients)
         rewards = np.vstack(self.rewards)
-        rewards = self.discount_rewards(rewards) + np.vstack(self.insta_rewards).astype(np.float32)
+        rewards = self.discount_rewards(rewards) + 
+                        np.vstack(self.insta_rewards).astype(np.float32)
         rewards -= np.mean(rewards)
         div_rew = np.std(rewards)
         if (div_rew == 0):
@@ -132,12 +123,10 @@ class PGAgent:
         self.Xamemory += self.states_a
         learning_rate = self.learning_rate_step_down[self.learning_rate_id]
         
-        # print 'pretrain norm'
-        # print np.asarray(self.Ymemory).shape
-        # print np.asarray(self.probs).shape
-        # print (learning_rate * np.squeeze(np.vstack([gradients]))).shape
-        self.Ymemory = np.vstack((self.Ymemory, (self.probs + learning_rate * np.squeeze(np.vstack([gradients])))))
-        self.states_roi, self.states_a, self.probs, self.gradients, self.rewards, self.insta_rewards = [], [], [], [], [], []
+        self.Ymemory = np.vstack((self.Ymemory, (self.probs + 
+                        learning_rate * np.squeeze(np.vstack([gradients])))))
+        self.states_roi, self.states_a, self.probs, self.gradients = [], [], [], []
+        self.rewards, self.insta_rewards = [], []
 
     def get_ratio(self):
         return float(self.wins)/self.games
@@ -155,7 +144,6 @@ class PGAgent:
         Y[Y>1]=1.0
 
         print '[PGAgent] ' + 'Updating on ', Y.shape, ' items...'
-        # self.model.train_on_batch(X, Y)
         self.model.fit(X, Y, batch_size=5000, epochs=self.training_epochs, verbose=1)
         print '[PGAgent] ' + 'Model updated on last batch!'
         self.states_roi, self.states_a, self.probs, self.gradients, self.rewards = [], [], [], [], []
@@ -169,14 +157,9 @@ class PGAgent:
 
     def save(self, name):
         self.model.save_weights(name)
-        # Now memorize
-        # print 'Memorizing ', len(total_actions), ' cases.'
-        # model.fit([np.asarray(total_r_states), np.asarray(total_a_states)], 
-        #           to_categorical(total_actions, num_classes=rll.num_classes),
-        #           batch_size=1, epochs=1, verbose=1)
 
-ID = os.getenv('ID', -109)
-SCORES_FILE = 'scores'+str(ID)+'.csv'
+ID = os.getenv('ID', 'not_specified')
+SCORES_FILE = 'scores' + str(ID) + '.csv'
 
 def agent_eval(env, agent):
     test_games = 60
@@ -190,13 +173,13 @@ def agent_eval(env, agent):
             if (len(reward) > 1):
                 reward = reward[0]
             if is_done:
-                if reward > 1 or info is 'Done': # was 1
+                if reward > 1 or info is 'Done':
                     wins += 1
                 # Save state
                 img = env.render(viz = False)
                 cv2.imwrite('eval_traj_' + str(ID) + '_' + str(i) + '.png', img)
                 break
-    return float(wins)/test_games
+    return float(wins) / test_games
 
 if __name__ == '__main__':
     # Hyper params
@@ -246,7 +229,7 @@ if __name__ == '__main__':
             r, a = full_state
 
             if is_done:
-                # Train model again
+                # Prepare gradients
                 agent.prepare_training_norm(info)
                 agent.add_completeness_ratio(env.get_completeness_ratio())
                 if (SIMP_ON):
@@ -260,7 +243,7 @@ if __name__ == '__main__':
         should_viz = "DISPLAY" in os.environ
         f_map = env.render(viz=should_viz)
         if not should_viz:
-            cv2.imwrite('path'+str(epoch%2)+'_'+str(ID)+'.png', f_map)
+            cv2.imwrite('path' + str(epoch%2) + '_' + str(ID) + '.png', f_map)
 
         if epoch > 1 and epoch % agent.traj_epochs == 0:
             print '>>> TRAINING !'
@@ -273,11 +256,7 @@ if __name__ == '__main__':
             lr_id = next(x[0] for x in enumerate(agent.learning_rate_step_down_epochs) if x[1] > epoch // agent.traj_epochs)
             lr_id = lr_id if lr_id < len(agent.learning_rate_step_down) else len(agent.learning_rate_step_down)-1
             agent.learning_rate_id = lr_id
-            print "LR ", lr_id
-            # agent.learning_rate = agent.learning_rate_step_down[lr_id]
 
-            # if (agent.traj_epochs * 500 < epoch):
-            #     agent.learning_rate = agent.learning_rate_step_down
             agent.train()
             if SIMP_ON:
                 simp_agent.train()
