@@ -2,7 +2,7 @@ import csv
 import rl_player as rlp
 
 if __name__ == '__main__':
-	ratios, scores, comp_ratio, testing = [], [], [], []
+	ratios, scores, comp_ratio, testing, w_sum, w_sum_std = [], [], [], [], [], []
 
 	with open('../'+rlp.SCORES_FILE) as csvfile:
 		reader = csv.DictReader(csvfile)
@@ -15,6 +15,15 @@ if __name__ == '__main__':
 				testing.append(float(row['testing']))
 			elif testing:
 				testing.append(testing[-1])
+			if ('weight_sum' in row):
+				w_sum.append(float(row['weight_sum']))
+				if ('weight_sum_std' in row):
+					w_sum_std.append(float(row['weight_sum_std']))
+				else:
+					w_sum_std.append(.0)
+			elif w_sum:
+				w_sum.append(w_sum[-1])
+				w_sum_std.append(w_sum_std[-1])
 	
 	import matplotlib.pyplot as plt
 	from matplotlib.ticker import MaxNLocator
@@ -23,6 +32,8 @@ if __name__ == '__main__':
 	if (comp_ratio):
 		subfig_num += 100
 	if (testing):
+		subfig_num += 100
+	if (w_sum):
 		subfig_num += 100
 	plt.subplot(subfig_num)
 	# plt.plot(ratios)
@@ -53,6 +64,18 @@ if __name__ == '__main__':
 		plt.ylabel('Testing (argmax)')
 		axes = plt.gca()
 		axes.set_ylim([0, 1])
+		axes.xaxis.set_major_locator(MaxNLocator(integer=True))
+
+	if (w_sum):
+		subfig_num += 1
+		plt.subplot(subfig_num)
+		x = range(0, len(w_sum))
+		plt.errorbar(x, w_sum, yerr=w_sum_std, 
+			color='m', linestyle='-', capsize=2, errorevery=5)
+		plt.grid()
+		plt.ylabel('Weight sum')
+		axes = plt.gca()
+		# axes.set_ylim([0, 1])
 		axes.xaxis.set_major_locator(MaxNLocator(integer=True))
 
 

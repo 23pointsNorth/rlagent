@@ -159,7 +159,7 @@ class PGAgent:
         self.model.save_weights(name)
 
 
-SIMP_ON = os.getenv('SIMP', False) is 'True'
+SIMP_ON = os.getenv('SIMP', False)
 ID = os.getenv('ID', 'not_specified')
 SCORES_FILE = 'scores' + str(ID) + '.csv'
 
@@ -202,8 +202,12 @@ if __name__ == '__main__':
                         env_cost_scale=50.0)
 
     # Clear the file
-    with open(SCORES_FILE, 'w') as scores_file:
-        scores_file.write('ratio,score,completeness_ratio,testing\n')
+    with open(SCORES_FILE, 'w') as score_file:
+        score_file.write('ratio,score,completeness_ratio,testing')
+        if SIMP_ON:
+            score_file.write(',weight_sum,weight_sum_std\n')
+        else:
+            score_file.write('\n')
 
     while True:
         epoch += 1
@@ -215,7 +219,7 @@ if __name__ == '__main__':
 
         r, a = env.reset()
         while True:
-            w, mu = simp_agent.act_simp([r, a]) if (SIMP_ON) else np.ones(32*32+1), np.ones(32*32+1)
+            w, mu = simp_agent.act_simp([r, a]) if SIMP_ON else (np.ones(32*32+1), np.ones(32*32+1))
             weight_ws.append(w)
             wr = (w[:-1].reshape((int(sqrt(len(w[:-1]))), -1)) * r.reshape((r.shape[1], -1))).reshape(r.shape)
             wa = w[-1] * a
@@ -261,6 +265,7 @@ if __name__ == '__main__':
 
             agent.train()
             if SIMP_ON:
+                print 'Training Simplification Agent...'
                 simp_agent.train()
 
             if epoch % (5 * agent.traj_epochs) == 0:
@@ -268,7 +273,12 @@ if __name__ == '__main__':
                 success_ratio = agent_eval(env, agent)
                 print 'Test argmax: ', success_ratio
             with open(SCORES_FILE, 'a') as score_file:
-                score_file.write('%.2f\n' % (success_ratio))
+                score_file.write('%.2f' % (success_ratio))
+                if SIMP_ON:
+                    score_file.write(',%.2f,%.2f\n' % (np.mean(weight_ws), np.std(weight_ws)))
+                else:
+                    score_file.write('\n')
+            weight_ws = []
 
         if epoch > 1 and epoch % 10000 == 0 and "DISPLAY" not in os.environ:
             print 'Saving model..'
