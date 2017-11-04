@@ -91,7 +91,7 @@ def create_simp_model(weights_path=None):
 
     x = Dense(64, activation='relu')(x)
     x = Dropout(0.1)(x)
-    x = Dense(32, activation='relu')(x)
+    x = Dense(128, activation='relu')(x)
     out = Dense(img_rows*img_cols*1 + 1, activation='sigmoid')(x) #softmax
 
     model = Model(inputs = [img_input, goal_input], outputs = out)

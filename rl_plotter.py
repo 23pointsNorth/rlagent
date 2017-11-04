@@ -1,7 +1,9 @@
 import csv
+import os
 import rl_player as rlp
 
 if __name__ == '__main__':
+	COMP_ON = os.getenv('SIMP', False)
 	ratios, scores, comp_ratio, testing, w_sum, w_sum_std = [], [], [], [], [], []
 
 	with open('../'+rlp.SCORES_FILE) as csvfile:
@@ -15,7 +17,7 @@ if __name__ == '__main__':
 				testing.append(float(row['testing']))
 			elif testing:
 				testing.append(testing[-1])
-			if ('weight_sum' in row):
+			if ('weight_sum' in row) and row['weight_sum'] and len(row['weight_sum'].strip()) > 0:
 				w_sum.append(float(row['weight_sum']))
 				if ('weight_sum_std' in row):
 					w_sum_std.append(float(row['weight_sum_std']))
@@ -29,14 +31,13 @@ if __name__ == '__main__':
 	from matplotlib.ticker import MaxNLocator
 	plt.figure(1, figsize=(7, 8))
 	subfig_num = 211
-	if (comp_ratio):
+	if (comp_ratio and COMP_ON):
 		subfig_num += 100
 	if (testing):
 		subfig_num += 100
 	if (w_sum):
 		subfig_num += 100
 	plt.subplot(subfig_num)
-	# plt.plot(ratios)
 
 	plt.title('Evolution of ratio of wins and scores')
 	plt.ylabel('Ratio of wins/total games')
@@ -46,7 +47,7 @@ if __name__ == '__main__':
 	axes.set_ylim([0, 1])
 	axes.xaxis.set_major_locator(MaxNLocator(integer=True))
 	
-	if (comp_ratio):
+	if (comp_ratio and COMP_ON):
 		subfig_num += 1
 		plt.subplot(subfig_num)
 		plt.plot(comp_ratio, 'g-')
@@ -75,7 +76,7 @@ if __name__ == '__main__':
 		plt.grid()
 		plt.ylabel('Weight sum')
 		axes = plt.gca()
-		# axes.set_ylim([0, 1])
+		axes.set_ylim([0, 1])
 		axes.xaxis.set_major_locator(MaxNLocator(integer=True))
 
 

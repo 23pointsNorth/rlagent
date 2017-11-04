@@ -192,6 +192,7 @@ if __name__ == '__main__':
     success_ratio = 0
     weight_ws = []
     scores_ws = []
+    SIMP_REWARD_SCALE = 5.0
 
     agent = PGAgent(model = rll.create_model(), action_size = rll.num_classes)
     if SIMP_ON:
@@ -220,6 +221,10 @@ if __name__ == '__main__':
         r, a = env.reset()
         while True:
             w, mu = simp_agent.act_simp([r, a]) if SIMP_ON else (np.ones(32*32+1), np.ones(32*32+1))
+
+            w[w < 0.5] = 0.0
+            w[w != .0] = 1.0
+            # print w, np.count_nonzero(w), np.mean(w)
             weight_ws.append(w)
             wr = (w[:-1].reshape((int(sqrt(len(w[:-1]))), -1)) * r.reshape((r.shape[1], -1))).reshape(r.shape)
             wa = w[-1] * a
@@ -229,7 +234,7 @@ if __name__ == '__main__':
             full_state, reward, is_done, info = env.step(action)
             agent.remember([wr, wa], action, prob, reward)
             if (SIMP_ON):
-                simp_reward = [reward[0], reward[1] - sum(w)]
+                simp_reward = [reward[0], reward[1] - (np.mean(w)) * SIMP_REWARD_SCALE]
                 simp_agent.remember_simp([r, a], w, mu, simp_reward)
             score += sum(reward)
             r, a = full_state
@@ -275,7 +280,7 @@ if __name__ == '__main__':
             with open(SCORES_FILE, 'a') as score_file:
                 score_file.write('%.2f' % (success_ratio))
                 if SIMP_ON:
-                    score_file.write(',%.2f,%.2f\n' % (np.mean(weight_ws), np.std(weight_ws)))
+                    score_file.write(',%.2f,%.2f\n' % (np.mean(weight_ws), np.std(np.mean(weight_ws, axis=1))))
                 else:
                     score_file.write('\n')
             weight_ws = []
