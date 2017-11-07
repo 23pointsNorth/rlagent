@@ -188,6 +188,7 @@ if __name__ == '__main__':
     epoch = 0
     total_wins = 0
     score_sum = 0
+    simp_score_sum=0
     world_size = 250
     success_ratio = 0
     weight_ws = []
@@ -206,7 +207,7 @@ if __name__ == '__main__':
     with open(SCORES_FILE, 'w') as score_file:
         score_file.write('ratio,score,completeness_ratio,testing')
         if SIMP_ON:
-            score_file.write(',weight_sum,weight_sum_std\n')
+            score_file.write(',weight_sum,weight_sum_std,simp_score\n')
         else:
             score_file.write('\n')
 
@@ -216,6 +217,7 @@ if __name__ == '__main__':
         print 'ID:', str(ID), ' Epoch: ', epoch, ' w: ', total_wins + agent.wins
 
         score = 0
+        simp_score = 0
         fails = 0
 
         r, a = env.reset()
@@ -237,6 +239,7 @@ if __name__ == '__main__':
                 simp_reward = [reward[0], reward[1] - (np.mean(w)) * SIMP_REWARD_SCALE]
                 simp_agent.remember_simp([r, a], w, mu, simp_reward)
             score += sum(reward)
+            simp_score += sum(simp_reward)
             r, a = full_state
 
             if is_done:
@@ -247,9 +250,10 @@ if __name__ == '__main__':
                     simp_agent.prepare_training_norm(info)
                 break
 
-        print 'Finished epoch with ', env.total_played_actions, ' steps and score of ', score, ' ratio of: ', agent.get_ratio()
+        print 'Finished epoch with ', env.total_played_actions, ' steps and score of ', score, ' ratio of: ', agent.get_ratio(), ' simp_score ', simp_score
         score_sum += score
-        scores_ws.append(score)
+        simp_score_sum += simp_score
+        scores_ws.append(score_sum)
 
         should_viz = "DISPLAY" in os.environ
         f_map = env.render(viz=should_viz)
@@ -280,10 +284,11 @@ if __name__ == '__main__':
             with open(SCORES_FILE, 'a') as score_file:
                 score_file.write('%.2f' % (success_ratio))
                 if SIMP_ON:
-                    score_file.write(',%.2f,%.2f\n' % (np.mean(weight_ws), np.std(np.mean(weight_ws, axis=1))))
+                    score_file.write(',%.2f,%.2f,%.2f\n' % (np.mean(weight_ws), np.std(np.mean(weight_ws, axis=1)), float(simp_score_sum)/agent.traj_epochs))
                 else:
                     score_file.write('\n')
             weight_ws = []
+            simp_score_sum = 0
 
         if epoch > 1 and epoch % 10000 == 0 and "DISPLAY" not in os.environ:
             print 'Saving model..'

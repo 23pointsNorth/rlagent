@@ -4,7 +4,7 @@ import rl_player as rlp
 
 if __name__ == '__main__':
 	COMP_ON = os.getenv('SIMP', False)
-	ratios, scores, comp_ratio, testing, w_sum, w_sum_std = [], [], [], [], [], []
+	ratios, scores, comp_ratio, testing, w_sum, w_sum_std, simp_score = [], [], [], [], [], [], []
 
 	with open('../'+rlp.SCORES_FILE) as csvfile:
 		reader = csv.DictReader(csvfile)
@@ -26,6 +26,10 @@ if __name__ == '__main__':
 			elif w_sum:
 				w_sum.append(w_sum[-1])
 				w_sum_std.append(w_sum_std[-1])
+			if ('simp_score' in row) and row['simp_score'] and len(row['simp_score'].strip()) > 0:
+				simp_score.append(float(row['simp_score']))
+			elif simp_score:
+				simp_score.append(simp_score[-1])
 	
 	import matplotlib.pyplot as plt
 	from matplotlib.ticker import MaxNLocator
@@ -36,6 +40,8 @@ if __name__ == '__main__':
 	if (testing):
 		subfig_num += 100
 	if (w_sum):
+		subfig_num += 100
+	if (simp_score):
 		subfig_num += 100
 	plt.subplot(subfig_num)
 
@@ -74,11 +80,19 @@ if __name__ == '__main__':
 		plt.errorbar(x, w_sum, yerr=w_sum_std, 
 			color='m', linestyle='-', capsize=2, errorevery=5)
 		plt.grid()
-		plt.ylabel('Weight sum')
+		plt.ylabel('Avg Weight')
 		axes = plt.gca()
 		axes.set_ylim([0, 1])
 		axes.xaxis.set_major_locator(MaxNLocator(integer=True))
 
+	if (simp_score):
+		subfig_num += 1
+		plt.subplot(subfig_num)
+		plt.plot(simp_score, 'c-')
+		plt.grid()
+		plt.ylabel('Simp Scores')
+		axes = plt.gca()
+		axes.xaxis.set_major_locator(MaxNLocator(integer=True))
 
 	# Plot scores
 	subfig_num += 1
