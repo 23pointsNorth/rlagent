@@ -47,6 +47,10 @@ class PGAgent:
         optimizer = Adagrad(lr=0.002)
         self.model.compile(loss=keras.losses.categorical_crossentropy,
                       optimizer=optimizer, metrics=['accuracy'] )
+    def _config_model_mse(self):
+        optimizer = Adagrad(lr=0.001)
+        self.model.compile(loss=keras.losses.mse,
+                      optimizer=optimizer, metrics=['accuracy'] )
 
     def remember(self, state, action, prob, reward):
         y = np.zeros([self.action_size])
@@ -86,7 +90,7 @@ class PGAgent:
 
     def act_simp(self, state):
         mu = self.model.predict(state, batch_size=1).flatten()
-        std = 0.05
+        std = 0.2
         cause = np.random.normal(loc=mu, scale=std)
         cause[cause > 1.0] = 1.0
         cause[cause < 0] = 0
@@ -193,12 +197,13 @@ if __name__ == '__main__':
     success_ratio = 0
     weight_ws = []
     scores_ws = []
-    SIMP_REWARD_SCALE = 5.0
+    SIMP_REWARD_SCALE = 1.0
 
     agent = PGAgent(model = rll.create_model(), action_size = rll.num_classes)
     if SIMP_ON:
         print 'Initializing Simplification agent'
         simp_agent = PGAgent(model = rll.create_simp_model(), action_size = 32*32+1)
+        simp_agent._config_model_mse()
     env = te.TerrainEnv(world_size=world_size, obstacles=True, 
                         env_cost=True, sparse_reward=False,
                         env_cost_scale=50.0)
@@ -224,22 +229,33 @@ if __name__ == '__main__':
         while True:
             w, mu = simp_agent.act_simp([r, a]) if SIMP_ON else (np.ones(32*32+1), np.ones(32*32+1))
 
-            w[w < 0.5] = 0.0
-            w[w != .0] = 1.0
-            # print w, np.count_nonzero(w), np.mean(w)
-            weight_ws.append(w)
-            wr = (w[:-1].reshape((int(sqrt(len(w[:-1]))), -1)) * r.reshape((r.shape[1], -1))).reshape(r.shape)
-            wa = w[-1] * a
+            w_all = np.ones_like(w) * -1
+            # idxs = w > 0.5
+            idxs = mu > 0.5
+            weight_ws.append(float(np.count_nonzero(idxs)) / len(w_all))
+            w_all[idxs] = np.append(r.flatten(),a)[idxs]
+            wr = w_all[:-1].reshape(r.shape)
+            wa = w_all[-1].reshape(a.shape)
+            # print wr
+            # print float(np.count_nonzero(idxs)) / len(w_all)
+
+            # Get agent action
             action, prob = agent.act([wr, wa])
+
+            # print np.asarray(wr), np.asarray(wr[0, :,:, 0]).shape
+            # cv2.imshow('wroi', np.asarray(wr[0, :,:, 0], dtype=np.float32))
+            # cv2.waitKey(0)
 
             # Make the action
             full_state, reward, is_done, info = env.step(action)
             agent.remember([wr, wa], action, prob, reward)
             if (SIMP_ON):
-                simp_reward = [reward[0], reward[1] - (np.mean(w)) * SIMP_REWARD_SCALE]
+                # simp_reward = [reward[0], reward[1] - (weight_ws[-1]) * SIMP_REWARD_SCALE]
+                simp_reward = [0, -(weight_ws[-1]) * SIMP_REWARD_SCALE]
+                # print simp_reward
                 simp_agent.remember_simp([r, a], w, mu, simp_reward)
+                simp_score += sum(simp_reward)
             score += sum(reward)
-            simp_score += sum(simp_reward)
             r, a = full_state
 
             if is_done:
@@ -284,7 +300,7 @@ if __name__ == '__main__':
             with open(SCORES_FILE, 'a') as score_file:
                 score_file.write('%.2f' % (success_ratio))
                 if SIMP_ON:
-                    score_file.write(',%.2f,%.2f,%.2f\n' % (np.mean(weight_ws), np.std(np.mean(weight_ws, axis=1)), float(simp_score_sum)/agent.traj_epochs))
+                    score_file.write(',%.2f,%.2f,%.2f\n' % (np.mean(weight_ws), np.std(weight_ws), float(simp_score_sum)/agent.traj_epochs))
                 else:
                     score_file.write('\n')
             weight_ws = []

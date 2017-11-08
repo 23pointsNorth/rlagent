@@ -100,7 +100,7 @@ def create_simp_model(weights_path=None):
         print('Loaded weights from ' + weights_path)
 
     optimizer = Adamax(lr=0.02, clipnorm=1e-6, clipvalue=1e6)
-    model.compile(loss=keras.losses.categorical_crossentropy, #mse mae
+    model.compile(loss=keras.losses.mse, #mse mae
                   optimizer=optimizer, # keras.optimizers.Adadelta()
                   metrics=[ 'accuracy'
                   # 'mae', abs_diff

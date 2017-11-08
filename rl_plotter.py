@@ -78,7 +78,8 @@ if __name__ == '__main__':
 		plt.subplot(subfig_num)
 		x = range(0, len(w_sum))
 		plt.errorbar(x, w_sum, yerr=w_sum_std, 
-			color='m', linestyle='-', capsize=2, errorevery=5)
+			color='m', linestyle='-', capsize=2, 
+			errorevery=int(max(1, len(w_sum)/50)))
 		plt.grid()
 		plt.ylabel('Avg Weight')
 		axes = plt.gca()
